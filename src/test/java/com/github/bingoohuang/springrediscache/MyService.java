@@ -14,7 +14,7 @@ public class MyService {
         return tokenId + ":" + System.currentTimeMillis();
     }
 
-    @RedisCacheEnabled(expirationMillis = 2000, aheadMillis = 100, naming = MyServiceCacheNameGenerator.class)
+    @RedisCacheEnabled(expirationMillis = 2000, aheadMillis = 100, naming = MyServiceRedisCacheNameGenerator.class)
     public String getTokenRedisNaming(String tokenId) {
         return tokenId + ":" + System.currentTimeMillis();
     }

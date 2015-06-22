@@ -13,11 +13,11 @@ import java.lang.annotation.*;
 public @interface RedisCacheEnabled {
     /**
      * 缓存前缀名称前缀.
-     * 不设置时，取类名:方法名(去除头部get)，例如：MerchantService:MerchantID.
+     * 缓存名称，例如：Cache:MerchantService:MerchantID.
      *
      * @return 缓存名称前缀.
      */
-    String prefix() default "";
+    String prefix() default "Cache";
 
     /**
      * 缓存过期微秒数.
@@ -49,5 +49,5 @@ public @interface RedisCacheEnabled {
      *
      * @return 缓存名称生成器.
      */
-    Class<? extends CacheNameGenerator> naming() default NOOP.class;
+    Class<? extends RedisCacheNameGenerator> naming() default NoopRedisCacheNameGenerator.class;
 }

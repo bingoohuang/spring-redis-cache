@@ -3,7 +3,7 @@ package com.github.bingoohuang.springrediscache;
 class NotifyProcessor implements CacheProcessor {
     private final InvocationRuntime runtime;
 
-    public NotifyProcessor(InvocationRuntime runtime) {
+    NotifyProcessor(InvocationRuntime runtime) {
         this.runtime = runtime;
     }
 

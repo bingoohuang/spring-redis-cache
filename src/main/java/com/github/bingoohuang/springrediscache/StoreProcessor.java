@@ -3,7 +3,7 @@ package com.github.bingoohuang.springrediscache;
 class StoreProcessor implements CacheProcessor {
     private final InvocationRuntime runtime;
 
-    public StoreProcessor(InvocationRuntime runtime) {
+    StoreProcessor(InvocationRuntime runtime) {
         this.runtime = runtime;
     }
 
@@ -73,7 +73,7 @@ class StoreProcessor implements CacheProcessor {
         long millis = getExpirationMillis(runtime);
 
         runtime.setex(millis);
-        runtime.putCache(millis);
+        runtime.putLocalCache(millis);
     }
 
     private long getExpirationMillis(InvocationRuntime runtime) {

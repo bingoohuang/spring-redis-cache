@@ -37,10 +37,10 @@ public class CacheTest {
     public void getTokenRedisNaming() {
         redis.del("Cache:MyService:TokenRedisRefresh:bingoo1");
         String token1 = myService.getTokenRedisNaming("bingoo1");
-        Threads.sleep(1000);
+        Utils.sleep(1000);
         String token2 = myService.getTokenRedisNaming("bingoo1");
         assertThat(token1, is(equalTo(token2)));
-        Threads.sleep(2000);
+        Utils.sleep(2000);
         String token3 = myService.getTokenRedisNaming("bingoo1");
         assertTrue(token2.compareTo(token3) < 0);
     }
@@ -49,19 +49,19 @@ public class CacheTest {
     public void getTokenRedisStore() {
         redis.del("Cache:MyService:TokenRedisRefresh:bingoo1");
         String token1 = myService.getTokenRedisStore("bingoo1");
-        Threads.sleep(1000);
+        Utils.sleep(1000);
         String token2 = myService.getTokenRedisStore("bingoo1");
         assertThat(token1, is(equalTo(token2)));
-        Threads.sleep(2000);
+        Utils.sleep(2000);
         String token3 = myService.getTokenRedisStore("bingoo1");
         assertTrue(token2.compareTo(token3) < 0);
 
         redis.del("Cache:MyService:TokenRedisRefresh:bingoo11");
         String token11 = myService.getTokenRedisStore("bingoo11");
-        Threads.sleep(1000);
+        Utils.sleep(1000);
         String token21 = myService.getTokenRedisStore("bingoo11");
         assertThat(token11, is(equalTo(token21)));
-        Threads.sleep(2000);
+        Utils.sleep(2000);
         String token31 = myService.getTokenRedisStore("bingoo11");
         assertTrue(token21.compareTo(token31) < 0);
     }
@@ -69,15 +69,15 @@ public class CacheTest {
     @Test
     public void getTokenRedisNotify() {
         String token1 = myService.getTokenRedisNotify("bingoo2");
-        Threads.sleep(1000);
+        Utils.sleep(1000);
         String token2 = myService.getTokenRedisNotify("bingoo2");
         assertThat(token1, is(equalTo(token2)));
-        Threads.sleep(1000);
+        Utils.sleep(1000);
         String token3 = myService.getTokenRedisNotify("bingoo2");
         assertThat(token3, is(equalTo(token2)));
 
         redis.incr("Cache:MyService:TokenRedisNotify:bingoo2");
-        Threads.sleep(15000); // at least 15 seconds
+        Utils.sleep(15000); // at least 15 seconds
         String token4 = myService.getTokenRedisNotify("bingoo2");
         assertTrue(token3.compareTo(token4) < 0);
     }
