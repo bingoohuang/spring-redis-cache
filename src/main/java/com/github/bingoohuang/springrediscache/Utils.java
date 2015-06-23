@@ -39,10 +39,10 @@ class Utils {
     static Object invokeMethod(MethodInvocation invocation, ApplicationContext appContext) {
         Method method = invocation.getMethod();
         Class<?> declaringClass = method.getDeclaringClass();
-        UseMockBeanIfAvailable useMockBeanIfAvailable = declaringClass.getAnnotation(UseMockBeanIfAvailable.class);
-        if (useMockBeanIfAvailable == null) invokeMethod(invocation);
+        RedisCacheTargetMock redisCacheTargetMock = declaringClass.getAnnotation(RedisCacheTargetMock.class);
+        if (redisCacheTargetMock == null) return invokeMethod(invocation);
 
-        String className = useMockBeanIfAvailable.value();
+        String className = redisCacheTargetMock.value();
         try {
             Class clazz = Class.forName(className);
             Object bean = appContext.getBean(clazz);
