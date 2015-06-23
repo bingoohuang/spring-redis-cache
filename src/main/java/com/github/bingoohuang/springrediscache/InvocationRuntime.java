@@ -78,7 +78,7 @@ class InvocationRuntime {
     }
 
      void invokeMethod() {
-        this.value = Utils.invokeMethod(invocation);
+        this.value = Utils.invokeMethod(invocation, appContext);
     }
 
      boolean tryRedisLock() {

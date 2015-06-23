@@ -7,6 +7,7 @@ import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 
+import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
 class Utils {
@@ -35,7 +36,24 @@ class Utils {
         }
     }
 
-    static Object invokeMethod(MethodInvocation invocation) {
+    static Object invokeMethod(MethodInvocation invocation, ApplicationContext appContext) {
+        Method method = invocation.getMethod();
+        Class<?> declaringClass = method.getDeclaringClass();
+        UseMockBeanIfAvailable useMockBeanIfAvailable = declaringClass.getAnnotation(UseMockBeanIfAvailable.class);
+        if (useMockBeanIfAvailable == null) invokeMethod(invocation);
+
+        String className = useMockBeanIfAvailable.value();
+        try {
+            Class clazz = Class.forName(className);
+            Object bean = appContext.getBean(clazz);
+            Method mockMethod = clazz.getMethod(method.getName(), method.getParameterTypes());
+            return mockMethod.invoke(bean, invocation.getArguments());
+        } catch (Exception e) {
+            return invokeMethod(invocation);
+        }
+    }
+
+    private static Object invokeMethod(MethodInvocation invocation) {
         try {
             return invocation.proceed();
         } catch (Throwable throwable) {
@@ -51,6 +69,8 @@ class Utils {
         }
 
         if (sb.length() > 0) sb.setLength(sb.length() - 1);
+        else sb.append("NoArgs");
+
         return sb.toString();
     }
 
