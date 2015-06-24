@@ -1,9 +1,9 @@
 package com.github.bingoohuang.springrediscache;
 
-class StoreProcessor implements CacheProcessor {
+class StoreValueProcessor implements CacheProcessor {
     private final InvocationRuntime runtime;
 
-    StoreProcessor(InvocationRuntime runtime) {
+    StoreValueProcessor(InvocationRuntime runtime) {
         this.runtime = runtime;
     }
 
@@ -27,7 +27,9 @@ class StoreProcessor implements CacheProcessor {
     }
 
     private void tryRefreshAhead(final InvocationRuntime runtime) {
-        if (runtime.isBeforeAheadMillis()) return;
+        if (!runtime.isAheadRefreshEnabled()) return;
+        if (runtime.isBeforeAheadSeconds()) return;
+
         if (!runtime.tryLockLocalCache()) return;
 
         runtime.submit(new Runnable() {
@@ -43,9 +45,9 @@ class StoreProcessor implements CacheProcessor {
     }
 
     private Object forceRefresh(final InvocationRuntime runtime) {
-        long ttl = runtime.redisTtl();
-        if (ttl * 1000 > runtime.aheadMillis()) {
-            runtime.loadRedisValueToCache(ttl);
+        long ttlSeconds = runtime.redisTtlSeconds();
+        if (ttlSeconds > Consts.AheadRefreshSeconds) {
+            runtime.loadRedisValueToCache(ttlSeconds);
         } else {
             tryRefreshOrReadRedis(runtime);
         }
@@ -70,23 +72,23 @@ class StoreProcessor implements CacheProcessor {
 
     private void invokeMethodAndSaveCache(InvocationRuntime runtime) {
         runtime.invokeMethod();
-        long millis = getExpirationMillis(runtime);
+        long expirationSeconds = getExpirationSeconds(runtime);
 
-        runtime.setex(millis);
-        runtime.putLocalCache(millis);
+        runtime.setex(expirationSeconds);
+        runtime.putLocalCache(expirationSeconds);
     }
 
-    private long getExpirationMillis(InvocationRuntime runtime) {
-        long millis = -1;
+    private long getExpirationSeconds(InvocationRuntime runtime) {
+        long seconds = -1;
         Object value = runtime.getValue();
         if (value instanceof RedisCacheExpirationAware)
-            millis = ((RedisCacheExpirationAware) value).expirationMillis();
+            seconds = ((RedisCacheExpirationAware) value).expirationSeconds();
 
-        if (millis <= 0) millis = runtime.expirationMillis();
-        if (millis > 0) return Math.min(millis, Consts.DayMillis);
+        if (seconds <= 0) seconds = runtime.expirationSeconds();
+        if (seconds > 0) return Math.min(seconds, Consts.DaySeconds);
 
-        throw new RuntimeException("bad usage @CacheEnabled, expirationMillis should be positive "
-                + " or return type implements CacheExpirationAware");
+        throw new RuntimeException("bad usage @RedisCacheEnabled, expiration should be positive "
+                + " or return type implements RedisCacheExpirationAware");
     }
 
 

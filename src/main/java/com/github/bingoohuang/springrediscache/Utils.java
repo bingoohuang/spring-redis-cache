@@ -11,12 +11,12 @@ import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
 class Utils {
-    public static long redisExpiration(String key, Redis redis) {
+    public static long redisExpirationSeconds(String key, Redis redis) {
         String expirationStr = redis.get(key);
-        long expiration = Consts.MaxMillis;
-        if (expirationStr == null) return expiration;
-        if (expirationStr.matches("\\d+")) return Consts.MinMillis + Long.parseLong(expirationStr);
-        return Consts.MinMillis + expirationStr.hashCode();
+        long expirationSeconds = Consts.MaxSeconds;
+        if (expirationStr == null) return expirationSeconds;
+        if (expirationStr.matches("\\d+")) return Consts.MinSeconds + Long.parseLong(expirationStr);
+        return Consts.MinSeconds + expirationStr.hashCode();
     }
 
 

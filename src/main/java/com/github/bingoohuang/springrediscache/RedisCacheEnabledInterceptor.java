@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static com.github.bingoohuang.springrediscache.Consts.RefreshSpanMillis;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static com.github.bingoohuang.springrediscache.RedisFor.RefreshSeconds;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Component
 public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable {
@@ -36,16 +36,16 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
         this.executorService = executorService;
 
         this.executorService.scheduleAtFixedRate(this,
-                RefreshSpanMillis, RefreshSpanMillis, MILLISECONDS);
+                Consts.RefreshSpanSeconds, Consts.RefreshSpanSeconds, SECONDS);
     }
 
     @Override
     public void run() {
         for (String key : cache.keySet()) {
             CachedValueWrapper wrapper = cache.get(key);
-            if (wrapper.getRedisCacheAnn().redisStore()) continue;
+            if (wrapper.getRedisCacheAnn().redisFor() != RefreshSeconds) continue;
 
-            long expiration = Utils.redisExpiration(key, redis);
+            long expiration = Utils.redisExpirationSeconds(key, redis);
             long cacheExpiration = cache.getExpiration(key);
             if (expiration == cacheExpiration) continue;
 

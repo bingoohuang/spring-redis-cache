@@ -13,6 +13,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static net.jodah.expiringmap.ExpiringMap.ExpirationPolicy.CREATED;
 import static org.springframework.util.StringUtils.capitalize;
 
@@ -52,7 +53,7 @@ class InvocationRuntime {
         }
 
         String arguments = Utils.joinArguments(invocation);
-        return getFirstPrefix() + getNamePrefix() + ":" + arguments;
+        return "Cache:" + getNamePrefix() + ":" + arguments;
     }
 
     private String getNamePrefix() {
@@ -63,49 +64,39 @@ class InvocationRuntime {
         return simpleName + capitalize(methodName);
     }
 
-    private String getFirstPrefix() {
-        String prefix = redisCacheAnn.prefix();
-        if (prefix.endsWith(":")) return prefix;
-        return prefix + ":";
+    long expirationSeconds() {
+        return redisCacheAnn.expirationSeconds();
     }
 
-     long aheadMillis() {
-        return redisCacheAnn.aheadMillis();
-    }
-
-     long expirationMillis() {
-        return redisCacheAnn.expirationMillis();
-    }
-
-     void invokeMethod() {
+    void invokeMethod() {
         this.value = Utils.invokeMethod(invocation, appContext);
     }
 
-     boolean tryRedisLock() {
+    boolean tryRedisLock() {
         boolean locked = redis.tryLock(lockKey);
         if (locked) logger.debug("got  redis lock {}", lockKey);
         return locked;
     }
 
-     void unlockRedis(boolean locked) {
+    void unlockRedis(boolean locked) {
         if (locked) {
             redis.del(lockKey);
             logger.debug("free redis lock {}", lockKey);
         }
     }
 
-     void setex(long millis) {
+    void setex(long expirationSeconds) {
         String value = Json.jsonWithType(this.value);
-        redis.setex(valueKey, value, millis, TimeUnit.MILLISECONDS);
-        logger.debug("put  redis {} = {} with expiration {} millis", valueKey, value, millis);
+        redis.setex(valueKey, value, expirationSeconds, TimeUnit.SECONDS);
+        logger.debug("put  redis {} = {} with expiration {} seconds", valueKey, value, expirationSeconds);
     }
 
-     Object getLocalCache() {
+    Object getLocalCache() {
         CachedValueWrapper cachedValue = localCache.get(valueKey);
         if (cachedValue != null) {
-            long expectedExpiration = getExpectedExpiration();
-            logger.debug("got  local {} = {} with expiration {} millis", valueKey, cachedValue.getValue(), expectedExpiration);
-            if (expectedExpiration > 0) this.value = cachedValue.getValue();
+            long expectedExpiration = getExpectedExpirationSeconds();
+            logger.debug("got  local {} = {} with expiration {} seconds", valueKey, cachedValue.getValue(), expectedExpiration);
+            if (expectedExpiration >= 0) this.value = cachedValue.getValue();
             else localCache.remove(valueKey);
         } else {
             logger.debug("got  local {} = null", valueKey);
@@ -114,76 +105,82 @@ class InvocationRuntime {
         return this.value;
     }
 
-    private long getExpectedExpiration() {
+    private long getExpectedExpirationSeconds() {
         try {
-            return localCache.getExpectedExpiration(valueKey);
+            return localCache.getExpectedExpiration(valueKey) / 1000;
         } catch (NoSuchElementException e) {
             return -1;
         }
     }
 
-     long redisTtl() {
+    long redisTtlSeconds() {
         return redis.ttl(valueKey);
     }
 
-     void putLocalCache(long millis) {
+    void putLocalCache(long ttlSeconds) {
         CachedValueWrapper valueWrapper = new CachedValueWrapper(this.value, redisCacheAnn, logger);
-        localCache.put(valueKey, valueWrapper, CREATED, millis, TimeUnit.MILLISECONDS);
-        logger.debug("put  local {} = {} with expiration {} millis", valueKey, this.value, millis);
+        localCache.put(valueKey, valueWrapper, CREATED, ttlSeconds, TimeUnit.SECONDS);
+        logger.debug("put  local {} = {} with expiration {} seconds", valueKey, this.value, ttlSeconds);
     }
 
-     void waitLockReleaseAndReadRedis() {
+    void waitLockReleaseAndReadRedis() {
         waitRedisLock();
         loadRedisValueToCache(-1);
     }
 
-     Object getValue() {
+    Object getValue() {
         return value;
     }
 
-     void loadRedisValueToCache(long ttl) {
+    void loadRedisValueToCache(long ttlSeconds) {
         String redisValue = redis.get(valueKey);
         logger.debug("got  redis {} = {}", valueKey, redisValue);
         value = Json.unJsonWithType(redisValue);
 
-        putLocalCache(ttl > 0 ? ttl : redisTtl());
+        putLocalCache(ttlSeconds > 0 ? ttlSeconds : redisTtlSeconds());
     }
 
-     boolean isBeforeAheadMillis() {
-        return getExpectedExpiration() > aheadMillis();
+    boolean isBeforeAheadSeconds() {
+        return getExpectedExpirationSeconds() > Consts.AheadRefreshSeconds;
     }
 
-     Object process() {
-        CacheProcessor cacheProcessor = redisCacheAnn.redisStore()
-                ? new StoreProcessor(this)
-                : new NotifyProcessor(this);
+    boolean isAheadRefreshEnabled() {
+        return redisCacheAnn.aheadRefresh() &&
+                redisCacheAnn.expirationSeconds() > Consts.AheadRefreshSeconds;
+    }
+
+    Object process() {
+        CacheProcessor cacheProcessor =
+                redisCacheAnn.redisFor() == StoreValue
+                        ? new StoreValueProcessor(this)
+                        : new RefreshMillisProcessor(this);
         return cacheProcessor.process();
     }
 
-     void submit(Runnable runnable) {
+    void submit(Runnable runnable) {
         executorService.submit(runnable);
     }
 
-     boolean tryLockLocalCache() {
+    boolean tryLockLocalCache() {
         Object prev = localCache.putIfAbsent(lockKey, CachedValueWrapper.instance);
         return prev == null;
     }
 
-     void unlockLocalCache() {
+    void unlockLocalCache() {
         localCache.remove(lockKey);
         logger.debug("free local lock {}", lockKey);
     }
 
-     Object invokeMethodAndPutCache() {
+    Object invokeMethodAndPutCache() {
         invokeMethod();
 
-        long expiration = Utils.redisExpiration(valueKey, redis);
+        long expiration = Utils.redisExpirationSeconds(valueKey, redis);
         putLocalCache(expiration);
 
         return value;
     }
 
-     void waitCacheLock() {
+    void waitCacheLock() {
         logger.debug("wait cache lock {}", lockKey);
         while (!tryLockLocalCache()) {
             Utils.sleep(100);

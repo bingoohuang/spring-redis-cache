@@ -67,18 +67,18 @@ public class CacheTest {
     }
 
     @Test
-    public void getTokenRedisNotify() {
-        String token1 = myService.getTokenRedisNotify("bingoo2");
+    public void getTokenRedisRefresh() {
+        String token1 = myService.getTokenRedisRefresh("bingoo2");
         Utils.sleep(1000);
-        String token2 = myService.getTokenRedisNotify("bingoo2");
+        String token2 = myService.getTokenRedisRefresh("bingoo2");
         assertThat(token1, is(equalTo(token2)));
         Utils.sleep(1000);
-        String token3 = myService.getTokenRedisNotify("bingoo2");
+        String token3 = myService.getTokenRedisRefresh("bingoo2");
         assertThat(token3, is(equalTo(token2)));
 
-        redis.incr("Cache:MyService:TokenRedisNotify:bingoo2");
+        redis.incr("Cache:MyService:TokenRedisRefresh:bingoo2");
         Utils.sleep(15000); // at least 15 seconds
-        String token4 = myService.getTokenRedisNotify("bingoo2");
+        String token4 = myService.getTokenRedisRefresh("bingoo2");
         assertTrue(token3.compareTo(token4) < 0);
     }
 
@@ -148,7 +148,7 @@ public class CacheTest {
                 e.printStackTrace();
             }
 
-            String token1 = myService.getTokenRedisNotify("bingoo4");
+            String token1 = myService.getTokenRedisRefresh("bingoo4");
             synchronized (objects) {
                 objects.add(token1);
             }
