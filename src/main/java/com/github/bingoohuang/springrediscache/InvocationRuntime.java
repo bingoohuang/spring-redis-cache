@@ -7,6 +7,7 @@ import org.aopalliance.intercept.MethodInvocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
+import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
 import java.util.NoSuchElementException;
@@ -135,9 +136,12 @@ class InvocationRuntime {
     void loadRedisValueToCache(long ttlSeconds) {
         String redisValue = redis.get(valueKey);
         logger.debug("got  redis {} = {}", valueKey, redisValue);
-        value = Json.unJsonWithType(redisValue);
 
-        putLocalCache(ttlSeconds > 0 ? ttlSeconds : redisTtlSeconds());
+        if (StringUtils.isEmpty(redisValue)) value = null;
+        else {
+            value = Json.unJsonWithType(redisValue);
+            putLocalCache(ttlSeconds > 0 ? ttlSeconds : redisTtlSeconds());
+        }
     }
 
     boolean isBeforeAheadSeconds() {
@@ -153,7 +157,7 @@ class InvocationRuntime {
         CacheProcessor cacheProcessor =
                 redisCacheAnn.redisFor() == StoreValue
                         ? new StoreValueProcessor(this)
-                        : new RefreshMillisProcessor(this);
+                        : new RefreshSecondsProcessor(this);
         return cacheProcessor.process();
     }
 

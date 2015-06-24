@@ -46,11 +46,12 @@ class StoreValueProcessor implements CacheProcessor {
 
     private Object forceRefresh(final InvocationRuntime runtime) {
         long ttlSeconds = runtime.redisTtlSeconds();
-        if (ttlSeconds > Consts.AheadRefreshSeconds) {
+
+        if (ttlSeconds > (runtime.isAheadRefreshEnabled() ? Consts.AheadRefreshSeconds : 0)) {
             runtime.loadRedisValueToCache(ttlSeconds);
-        } else {
-            tryRefreshOrReadRedis(runtime);
         }
+
+        if (runtime.getValue() == null) tryRefreshOrReadRedis(runtime);
 
         return runtime.getValue();
     }

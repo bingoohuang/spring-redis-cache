@@ -1,9 +1,9 @@
 package com.github.bingoohuang.springrediscache;
 
-class RefreshMillisProcessor implements CacheProcessor {
+class RefreshSecondsProcessor implements CacheProcessor {
     private final InvocationRuntime runtime;
 
-    RefreshMillisProcessor(InvocationRuntime runtime) {
+    RefreshSecondsProcessor(InvocationRuntime runtime) {
         this.runtime = runtime;
     }
 
