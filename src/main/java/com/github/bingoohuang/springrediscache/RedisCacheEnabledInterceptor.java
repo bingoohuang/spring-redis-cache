@@ -49,11 +49,11 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
             long cacheExpiration = cache.getExpiration(key);
             if (expiration == cacheExpiration) continue;
 
-            CachedValueWrapper remove = cache.remove(key);
-            if (remove == null) continue;
+            CachedValueWrapper removed = cache.remove(key);
+            if (removed == null) continue;
 
             Logger logger = wrapper.getLogger();
-            logger.debug("invalidate cache {} because of redis notification {} ", key, expiration);
+            logger.debug("invalidate cache {} because of redis refresh seconds changed to {} ", key, expiration);
         }
     }
 

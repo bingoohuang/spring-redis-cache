@@ -2,6 +2,7 @@ package com.github.bingoohuang.springrediscache;
 
 import com.github.bingoohuang.utils.codec.Json;
 import com.github.bingoohuang.utils.redis.Redis;
+import com.google.common.base.Throwables;
 import com.google.common.primitives.Primitives;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.beans.BeansException;
@@ -57,7 +58,7 @@ class Utils {
         try {
             return invocation.proceed();
         } catch (Throwable throwable) {
-            throw new RuntimeException(throwable);
+            throw Throwables.propagate(throwable);
         }
     }
 
