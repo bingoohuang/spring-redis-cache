@@ -5,11 +5,15 @@ import com.github.bingoohuang.utils.redis.Redis;
 import com.google.common.base.Throwables;
 import com.google.common.primitives.Primitives;
 import org.aopalliance.intercept.MethodInvocation;
+import org.slf4j.Logger;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 
 import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
+
+import static com.github.bingoohuang.springrediscache.RedisFor.RefreshSeconds;
+import static org.springframework.util.StringUtils.capitalize;
 
 class Utils {
     public static long redisExpirationSeconds(String key, Redis redis) {
@@ -93,4 +97,61 @@ class Utils {
             // ignore
         }
     }
+
+    static ValueSerializable createValueSerializer(ApplicationContext appContext,
+                                                   RedisCacheEnabled redisCacheAnn,
+                                                   Method method, Logger logger) {
+        if (redisCacheAnn.redisFor() == RefreshSeconds) return null;
+
+        Class<?> returnType = method.getReturnType();
+        if (redisCacheAnn.valueSerializer() == AutoSelectValueSerializer.class) {
+            if (returnType == String.class) return new StringValueSerializable();
+            if (returnType.isPrimitive() || Primitives.isWrapperType(returnType))
+                return new PrimitiveValueSerializable(returnType);
+            if (returnType.isEnum()) return new EnumValueSerializable(returnType);
+
+            return new JSONValueSerializer(returnType, logger);
+        }
+        
+        try {
+            return appContext.getBean(redisCacheAnn.valueSerializer());
+        } catch (BeansException e) {
+            logger.warn("unable to get spring bean by " + redisCacheAnn.valueSerializer());
+        }
+
+        ValueSerializable serializable = Utils.createObject(redisCacheAnn.valueSerializer());
+        if (serializable == null) {
+            logger.warn("unable to create instance for " + redisCacheAnn.valueSerializer()
+                    + ", use " + JSONValueSerializer.class + " for instead");
+            serializable = new JSONValueSerializer(returnType, logger);
+        }
+
+        return serializable;
+
+    }
+
+    static String generateValueKey(MethodInvocation invocation,
+                                   RedisCacheEnabled redisCacheAnn,
+                                   ApplicationContext appContext,
+                                   Logger logger) {
+        Class<? extends RedisCacheNameGenerator> naming = redisCacheAnn.naming();
+        if (naming != NoopRedisCacheNameGenerator.class) {
+            RedisCacheNameGenerator bean = getBean(appContext, naming);
+            if (bean != null) return bean.generateCacheName(invocation);
+
+            logger.warn("fail to get/create instance for {}", naming);
+        }
+
+        String arguments = joinArguments(invocation);
+        return "Cache:" + getNamePrefix(invocation) + ":" + arguments;
+    }
+
+    private static String getNamePrefix(MethodInvocation invocation) {
+        Method method = invocation.getMethod();
+        String methodName = method.getName();
+        String simpleName = method.getDeclaringClass().getSimpleName() + ":";
+        if (methodName.startsWith("get")) methodName = methodName.substring(3);
+        return simpleName + capitalize(methodName);
+    }
+
 }

@@ -43,4 +43,12 @@ public @interface RedisCacheEnabled {
      * @return 缓存名称生成器.
      */
     Class<? extends RedisCacheNameGenerator> naming() default NoopRedisCacheNameGenerator.class;
+
+
+    /**
+     * 值存取到Redis中的序列化器.
+     * 当redisFor = StoreValue有效.
+     * @return
+     */
+    Class<? extends ValueSerializable> valueSerializer() default AutoSelectValueSerializer.class;
 }

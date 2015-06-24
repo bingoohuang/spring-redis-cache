@@ -1,6 +1,5 @@
 package com.github.bingoohuang.springrediscache;
 
-import com.github.bingoohuang.utils.codec.Json;
 import com.github.bingoohuang.utils.redis.Redis;
 import net.jodah.expiringmap.ExpiringMap;
 import org.aopalliance.intercept.MethodInvocation;
@@ -9,14 +8,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.util.StringUtils;
 
-import java.lang.reflect.Method;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static net.jodah.expiringmap.ExpiringMap.ExpirationPolicy.CREATED;
-import static org.springframework.util.StringUtils.capitalize;
 
 class InvocationRuntime {
     private final MethodInvocation invocation;
@@ -28,6 +25,7 @@ class InvocationRuntime {
     private final ApplicationContext appContext;
     private final ScheduledExecutorService executorService;
     private final Logger logger;
+    private final ValueSerializable valueSerializer;
     private Object value;
 
     InvocationRuntime(MethodInvocation invocation, Redis redis, ExpiringMap<String, CachedValueWrapper> localCache,
@@ -40,29 +38,9 @@ class InvocationRuntime {
         this.appContext = appContext;
         this.executorService = executorService;
 
-        this.valueKey = generateValueKey(invocation);
+        this.valueKey = Utils.generateValueKey(invocation, redisCacheAnn, appContext, logger);
+        this.valueSerializer = Utils.createValueSerializer(appContext, redisCacheAnn, invocation.getMethod(), logger);
         this.lockKey = valueKey + ":lock";
-    }
-
-    private String generateValueKey(MethodInvocation invocation) {
-        Class<? extends RedisCacheNameGenerator> naming = redisCacheAnn.naming();
-        if (naming != NoopRedisCacheNameGenerator.class) {
-            RedisCacheNameGenerator bean = Utils.getBean(appContext, naming);
-            if (bean != null) return bean.generateCacheName(invocation);
-
-            logger.warn("fail to get/create instance for {}", naming);
-        }
-
-        String arguments = Utils.joinArguments(invocation);
-        return "Cache:" + getNamePrefix() + ":" + arguments;
-    }
-
-    private String getNamePrefix() {
-        Method method = invocation.getMethod();
-        String methodName = method.getName();
-        String simpleName = method.getDeclaringClass().getSimpleName() + ":";
-        if (methodName.startsWith("get")) methodName = methodName.substring(3);
-        return simpleName + capitalize(methodName);
     }
 
     long expirationSeconds() {
@@ -87,7 +65,7 @@ class InvocationRuntime {
     }
 
     void setex(long expirationSeconds) {
-        String value = Json.jsonWithType(this.value);
+        String value = valueSerializer.serialize(this.value);
         redis.setex(valueKey, value, expirationSeconds, TimeUnit.SECONDS);
         logger.debug("put  redis {} = {} with expiration {} seconds", valueKey, value, expirationSeconds);
     }
@@ -139,8 +117,8 @@ class InvocationRuntime {
 
         if (StringUtils.isEmpty(redisValue)) value = null;
         else {
-            value = Json.unJsonWithType(redisValue);
-            putLocalCache(ttlSeconds > 0 ? ttlSeconds : redisTtlSeconds());
+            value = valueSerializer.deserialize(redisValue, invocation.getMethod());
+            if (value != null) putLocalCache(ttlSeconds > 0 ? ttlSeconds : redisTtlSeconds());
         }
     }
 
