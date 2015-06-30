@@ -2,28 +2,45 @@ package com.github.bingoohuang.springrediscache;
 
 import com.github.bingoohuang.utils.codec.Json;
 import com.github.bingoohuang.utils.redis.Redis;
+import com.google.common.base.Charsets;
 import com.google.common.base.Throwables;
+import com.google.common.io.Files;
 import com.google.common.primitives.Primitives;
 import org.aopalliance.intercept.MethodInvocation;
 import org.slf4j.Logger;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
-import static com.github.bingoohuang.springrediscache.RedisFor.RefreshSeconds;
+import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static org.springframework.util.StringUtils.capitalize;
 
-class Utils {
-    public static long redisExpirationSeconds(String key, Redis redis) {
-        String expirationStr = redis.get(key);
+public class Utils {
+    public static long redisExpirationSeconds(String key, ApplicationContext appContext) {
+        Redis redis = tryGetBean(appContext, Redis.class);
+
+        String expirationStr = redis != null ? redis.get(key) : cwdFileRefreshSeconds(key);
         long expirationSeconds = Consts.MaxSeconds;
         if (expirationStr == null) return expirationSeconds;
         if (expirationStr.matches("\\d+")) return Consts.MinSeconds + Long.parseLong(expirationStr);
         return Consts.MinSeconds + expirationStr.hashCode();
     }
 
+    private static String cwdFileRefreshSeconds(String key) {
+        File file = new File(key.replace(':', '.'));
+        if (!file.exists() || !file.isFile()) return null;
+
+        try {
+            return Files.toString(file, Charsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("try to read cwdFileRefreshSeconds for key " + key + " failed", e);
+        }
+    }
 
     public static <T> T createObject(Class<T> clazz) {
         try {
@@ -101,7 +118,7 @@ class Utils {
     static ValueSerializable createValueSerializer(ApplicationContext appContext,
                                                    RedisCacheEnabled redisCacheAnn,
                                                    Method method, Logger logger) {
-        if (redisCacheAnn.redisFor() == RefreshSeconds) return null;
+        if (redisCacheAnn.redisFor() != StoreValue) return null;
 
         Class<?> returnType = method.getReturnType();
         if (redisCacheAnn.valueSerializer() == AutoSelectValueSerializer.class) {
@@ -112,7 +129,7 @@ class Utils {
 
             return new JSONValueSerializer(returnType, logger);
         }
-        
+
         try {
             return appContext.getBean(redisCacheAnn.valueSerializer());
         } catch (BeansException e) {
@@ -154,4 +171,11 @@ class Utils {
         return simpleName + capitalize(methodName);
     }
 
+    public static <T> T tryGetBean(ApplicationContext appContext, Class<T> clazz) {
+        try {
+            return appContext.getBean(clazz);
+        } catch (NoSuchBeanDefinitionException e) {
+            return null;
+        }
+    }
 }

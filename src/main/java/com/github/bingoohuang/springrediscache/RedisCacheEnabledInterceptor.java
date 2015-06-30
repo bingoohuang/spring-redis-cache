@@ -1,6 +1,5 @@
 package com.github.bingoohuang.springrediscache;
 
-import com.github.bingoohuang.utils.redis.Redis;
 import net.jodah.expiringmap.ExpiringMap;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
@@ -9,16 +8,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PreDestroy;
+import java.util.ConcurrentModificationException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static com.github.bingoohuang.springrediscache.RedisFor.RefreshSeconds;
+import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Component
 public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable {
-    @Autowired
-    Redis redis;
     @Autowired
     ApplicationContext appContext;
 
@@ -39,14 +38,33 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
                 Consts.RefreshSpanSeconds, Consts.RefreshSpanSeconds, SECONDS);
     }
 
+    @PreDestroy
+    public void cleanUp() throws Exception {
+        this.executorService.shutdown();
+    }
+
     @Override
     public void run() {
+        int reties = 3;
+        while (reties-- > 0) {
+            try {
+                scanEntries();
+                break;
+            } catch (ConcurrentModificationException e) {
+                Utils.sleep(100);
+                continue;
+            }
+        }
+    }
+
+    private void scanEntries() {
         for (String key : cache.keySet()) {
             CachedValueWrapper wrapper = cache.get(key);
-            if (wrapper.getRedisCacheAnn().redisFor() != RefreshSeconds) continue;
+            if (wrapper.getRedisCacheAnn().redisFor() == StoreValue) continue;
 
-            long expiration = Utils.redisExpirationSeconds(key, redis);
+            long expiration = Utils.redisExpirationSeconds(key, appContext);
             long cacheExpiration = cache.getExpiration(key);
+
             if (expiration == cacheExpiration) continue;
 
             CachedValueWrapper removed = cache.remove(key);
@@ -60,6 +78,6 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
     @Override
     public Object invoke(final MethodInvocation invocation) throws Throwable {
         return new InvocationRuntime(invocation,
-                redis, cache, appContext, executorService).process();
+                cache, appContext, executorService).process();
     }
 }

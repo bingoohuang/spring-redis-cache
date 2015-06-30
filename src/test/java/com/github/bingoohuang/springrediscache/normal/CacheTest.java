@@ -1,5 +1,8 @@
-package com.github.bingoohuang.springrediscache;
+package com.github.bingoohuang.springrediscache.normal;
 
+import com.github.bingoohuang.springrediscache.Utils;
+import com.github.bingoohuang.springrediscachetest.RedisBeanConfig;
+import com.github.bingoohuang.springrediscachetest.SpringConfig;
 import com.github.bingoohuang.utils.redis.Redis;
 import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
@@ -20,7 +23,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = SpringConfig.class)
+@ContextConfiguration(classes = {SpringConfig.class, RedisBeanConfig.class})
 public class CacheTest {
     @Autowired
     MyService myService;
@@ -77,7 +80,7 @@ public class CacheTest {
         assertThat(token3, is(equalTo(token2)));
 
         redis.incr("Cache:MyService:TokenRedisRefresh:bingoo2");
-        Utils.sleep(15000); // at least 15 seconds
+        Utils.sleep(15100); // at least 15 seconds
         String token4 = myService.getTokenRedisRefresh("bingoo2");
         assertTrue(token3.compareTo(token4) < 0);
     }

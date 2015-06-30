@@ -1,14 +1,13 @@
-package com.github.bingoohuang.springrediscache;
+package com.github.bingoohuang.springrediscachetest;
 
-import com.github.bingoohuang.utils.redis.Redis;
-import com.github.bingoohuang.utils.redis.RedisConfig;
+import com.github.bingoohuang.springrediscache.RedisCacheEnabledScan;
 import org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
+
 
 @Configuration
-@Import(RedisCacheSpringConfig.class)
+@RedisCacheEnabledScan
 public class SpringConfig {
     @Bean
     public DefaultAdvisorAutoProxyCreator defaultAdvisorAutoProxyCreator() {
@@ -17,11 +16,4 @@ public class SpringConfig {
         return creator;
     }
 
-    @Bean
-    public Redis redis() {
-        RedisConfig redisConfig = new RedisConfig();
-        redisConfig.setHost("127.0.0.1");
-        redisConfig.setPort(16379);
-        return new Redis(redisConfig);
-    }
 }

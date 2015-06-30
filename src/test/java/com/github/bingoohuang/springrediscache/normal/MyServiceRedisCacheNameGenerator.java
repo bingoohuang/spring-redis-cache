@@ -1,5 +1,7 @@
-package com.github.bingoohuang.springrediscache;
+package com.github.bingoohuang.springrediscache.normal;
 
+import com.github.bingoohuang.springrediscache.RedisCacheNameGenerator;
+import com.github.bingoohuang.springrediscache.Utils;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.stereotype.Component;
 

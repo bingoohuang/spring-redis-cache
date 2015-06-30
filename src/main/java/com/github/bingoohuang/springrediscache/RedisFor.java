@@ -8,5 +8,9 @@ public enum RedisFor {
     /**
      * Redis用于存储刷新时间戳，当刷新时间戳变化时，刷新本地缓存值.
      */
-    RefreshSeconds
+    RefreshSeconds,
+    /**
+     * 不使用Redis，使用当前目录下指定key的文件内容作为刷新秒数，当刷新时间戳变化时，刷新本地缓存值.
+     */
+    CwdFileRefreshSeconds
 }

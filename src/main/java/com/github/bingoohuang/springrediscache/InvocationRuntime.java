@@ -12,7 +12,6 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static net.jodah.expiringmap.ExpiringMap.ExpirationPolicy.CREATED;
 
 class InvocationRuntime {
@@ -28,12 +27,12 @@ class InvocationRuntime {
     private final ValueSerializable valueSerializer;
     private Object value;
 
-    InvocationRuntime(MethodInvocation invocation, Redis redis, ExpiringMap<String, CachedValueWrapper> localCache,
+    InvocationRuntime(MethodInvocation invocation, ExpiringMap<String, CachedValueWrapper> localCache,
                       ApplicationContext appContext, ScheduledExecutorService executorService) {
         this.logger = LoggerFactory.getLogger(invocation.getMethod().getDeclaringClass());
         this.invocation = invocation;
         this.redisCacheAnn = invocation.getMethod().getAnnotation(RedisCacheEnabled.class);
-        this.redis = redis;
+        this.redis = Utils.tryGetBean(appContext, Redis.class);
         this.localCache = localCache;
         this.appContext = appContext;
         this.executorService = executorService;
@@ -132,11 +131,23 @@ class InvocationRuntime {
     }
 
     Object process() {
-        CacheProcessor cacheProcessor =
-                redisCacheAnn.redisFor() == StoreValue
-                        ? new StoreValueProcessor(this)
-                        : new RefreshSecondsProcessor(this);
-        return cacheProcessor.process();
+        switch (redisCacheAnn.redisFor()) {
+            case StoreValue:
+                checkRedisRequired();
+                return new StoreValueProcessor(this).process();
+            case RefreshSeconds:
+                checkRedisRequired();
+            case CwdFileRefreshSeconds:
+                return new RefreshSecondsProcessor(this).process();
+        }
+
+        throw new RuntimeException("code should be reached here");
+    }
+
+    private void checkRedisRequired() {
+        if (redis != null) return;
+
+        throw new RuntimeException("Redis bean should defined in spring context");
     }
 
     void submit(Runnable runnable) {
@@ -156,7 +167,7 @@ class InvocationRuntime {
     Object invokeMethodAndPutCache() {
         invokeMethod();
 
-        long expiration = Utils.redisExpirationSeconds(valueKey, redis);
+        long expiration = Utils.redisExpirationSeconds(valueKey, appContext);
         putLocalCache(expiration);
 
         return value;
