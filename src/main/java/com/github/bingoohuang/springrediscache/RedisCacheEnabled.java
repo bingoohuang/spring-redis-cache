@@ -10,7 +10,7 @@ import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
  */
 @Inherited
 @Documented
-@Target({ElementType.METHOD, ElementType.TYPE})
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface RedisCacheEnabled {
     /**
@@ -48,6 +48,7 @@ public @interface RedisCacheEnabled {
     /**
      * 值存取到Redis中的序列化器.
      * 当redisFor = StoreValue有效.
+     *
      * @return
      */
     Class<? extends ValueSerializable> valueSerializer() default AutoSelectValueSerializer.class;
