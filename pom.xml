@@ -10,7 +10,7 @@
 
     <groupId>com.github.bingoohuang</groupId>
     <artifactId>spring-redis-cache</artifactId>
-    <version>0.0.6</version>
+    <version>0.0.7-SNAPSHOT</version>
 
     <name>spring redis cache</name>
     <description>spring cache based on redis</description>
