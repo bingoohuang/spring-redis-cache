@@ -96,7 +96,7 @@ class StoreValueProcessor implements CacheProcessor {
     }
 
     private long tryRedisCacheExpirationTag(Object value) {
-        Method method = Utils.findRedisCacheExpirationAwareTagMethod(value.getClass());
+        Method method = RedisCacheUtils.findRedisCacheExpirationAwareTagMethod(value.getClass());
         if (method == null) return -1;
 
         try {

@@ -32,13 +32,13 @@ class InvocationRuntime {
         this.logger = LoggerFactory.getLogger(invocation.getMethod().getDeclaringClass());
         this.invocation = invocation;
         this.redisCacheAnn = invocation.getMethod().getAnnotation(RedisCacheEnabled.class);
-        this.redis = Utils.tryGetBean(appContext, Redis.class);
+        this.redis = RedisCacheUtils.tryGetBean(appContext, Redis.class);
         this.localCache = localCache;
         this.appContext = appContext;
         this.executorService = executorService;
 
-        this.valueKey = Utils.generateValueKey(invocation, redisCacheAnn, appContext, logger);
-        this.valueSerializer = Utils.createValueSerializer(appContext, redisCacheAnn, invocation.getMethod(), logger);
+        this.valueKey = RedisCacheUtils.generateValueKey(invocation, redisCacheAnn, appContext, logger);
+        this.valueSerializer = RedisCacheUtils.createValueSerializer(appContext, redisCacheAnn, invocation.getMethod(), logger);
         this.lockKey = valueKey + ":lock";
     }
 
@@ -47,7 +47,7 @@ class InvocationRuntime {
     }
 
     void invokeMethod() {
-        this.value = Utils.invokeMethod(invocation, appContext);
+        this.value = RedisCacheUtils.invokeMethod(invocation, appContext);
     }
 
     boolean tryRedisLock() {
@@ -167,7 +167,7 @@ class InvocationRuntime {
     Object invokeMethodAndPutCache() {
         invokeMethod();
 
-        long expiration = Utils.redisExpirationSeconds(valueKey, appContext);
+        long expiration = RedisCacheUtils.redisExpirationSeconds(valueKey, appContext);
         putLocalCache(expiration);
 
         return value;
@@ -176,7 +176,7 @@ class InvocationRuntime {
     void waitCacheLock() {
         logger.debug("wait cache lock {}", lockKey);
         while (!tryLockLocalCache()) {
-            Utils.sleep(100);
+            RedisCacheUtils.sleep(100);
         }
         logger.debug("got  cache lock {}", lockKey);
     }
@@ -184,7 +184,7 @@ class InvocationRuntime {
     private void waitRedisLock() {
         logger.debug("wait redis lock {}", lockKey);
         do {
-            Utils.sleep(100);
+            RedisCacheUtils.sleep(100);
         } while (redis.isLocked(lockKey));
         logger.debug("got  redis lock {}", lockKey);
     }

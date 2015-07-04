@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static org.springframework.util.StringUtils.capitalize;
 
-public class Utils {
+public class RedisCacheUtils {
     static LoadingCache<Class<?>, Optional<Method>> redisCacheExpirationAwareTagMethodCache
             = CacheBuilder.newBuilder().build(new CacheLoader<Class<?>, Optional<Method>>() {
         @Override
@@ -96,7 +96,7 @@ public class Utils {
         try {
             return appContext.getBean(beanClass);
         } catch (BeansException e) {
-            return Utils.createObject(beanClass);
+            return RedisCacheUtils.createObject(beanClass);
         }
     }
 
@@ -119,6 +119,9 @@ public class Utils {
 
     private static Object invokeMethod(MethodInvocation invocation) {
         try {
+            Object threadLocalValue = RedisCacheConnecter.threadLocal.get();
+            if (threadLocalValue != null) return threadLocalValue;
+
             return invocation.proceed();
         } catch (Throwable throwable) {
             throw Throwables.propagate(throwable);
@@ -178,7 +181,7 @@ public class Utils {
             logger.warn("unable to get spring bean by " + redisCacheAnn.valueSerializer());
         }
 
-        ValueSerializable serializable = Utils.createObject(redisCacheAnn.valueSerializer());
+        ValueSerializable serializable = RedisCacheUtils.createObject(redisCacheAnn.valueSerializer());
         if (serializable == null) {
             logger.warn("unable to create instance for " + redisCacheAnn.valueSerializer()
                     + ", use " + JSONValueSerializer.class + " for instead");

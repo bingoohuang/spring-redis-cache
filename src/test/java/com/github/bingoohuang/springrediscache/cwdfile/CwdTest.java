@@ -1,6 +1,6 @@
 package com.github.bingoohuang.springrediscache.cwdfile;
 
-import com.github.bingoohuang.springrediscache.Utils;
+import com.github.bingoohuang.springrediscache.RedisCacheUtils;
 import com.github.bingoohuang.springrediscachetest.SpringConfig;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
@@ -43,7 +43,7 @@ public class CwdTest {
         long millis2 = cwdService.millis();
         assertThat(millis1, is(equalTo(millis2)));
 
-        Utils.sleep(15000);
+        RedisCacheUtils.sleep(15000);
 
         Files.write("1", file, Charsets.UTF_8);
 

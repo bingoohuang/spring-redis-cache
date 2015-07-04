@@ -55,7 +55,7 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
                 scanEntries();
                 break;
             } catch (ConcurrentModificationException e) {
-                Utils.sleep(100);
+                RedisCacheUtils.sleep(100);
                 continue;
             }
         }
@@ -66,7 +66,7 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
             CachedValueWrapper wrapper = cache.get(key);
             if (wrapper.getRedisCacheAnn().redisFor() == StoreValue) continue;
 
-            long expiration = Utils.redisExpirationSeconds(key, appContext);
+            long expiration = RedisCacheUtils.redisExpirationSeconds(key, appContext);
             long cacheExpiration = cache.getExpiration(key);
 
             if (expiration == cacheExpiration) continue;
