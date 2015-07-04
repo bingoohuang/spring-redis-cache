@@ -3,11 +3,16 @@ package com.github.bingoohuang.springrediscache;
 import com.github.bingoohuang.utils.codec.Json;
 import com.github.bingoohuang.utils.redis.Redis;
 import com.google.common.base.Charsets;
+import com.google.common.base.Optional;
 import com.google.common.base.Throwables;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.io.Files;
 import com.google.common.primitives.Primitives;
 import org.aopalliance.intercept.MethodInvocation;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
@@ -21,6 +26,43 @@ import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static org.springframework.util.StringUtils.capitalize;
 
 public class Utils {
+    static LoadingCache<Class<?>, Optional<Method>> redisCacheExpirationAwareTagMethodCache
+            = CacheBuilder.newBuilder().build(new CacheLoader<Class<?>, Optional<Method>>() {
+        @Override
+        public Optional<Method> load(Class<?> aClass) throws Exception {
+            return searchRedisCacheExpirationAwareTagMethod(aClass);
+        }
+    });
+
+    static Method findRedisCacheExpirationAwareTagMethod(Class<?> aClass) {
+        return redisCacheExpirationAwareTagMethodCache.getUnchecked(aClass).orNull();
+    }
+
+    private static Optional<Method> searchRedisCacheExpirationAwareTagMethod(Class<?> aClass) {
+        Logger log = LoggerFactory.getLogger(aClass);
+
+        for (Method method : aClass.getMethods()) {
+            RedisCacheExpirationAwareTag awareTag = method.getAnnotation(RedisCacheExpirationAwareTag.class);
+            if (awareTag == null) continue;
+            if (method.getParameterTypes().length != 0) {
+                log.warn("@RedisCacheExpirationAwareTag method should be non arguments");
+                continue;
+            }
+
+            Class<?> returnType = method.getReturnType();
+            if (returnType.isPrimitive()) returnType = Primitives.wrap(returnType);
+            if (!Number.class.isAssignableFrom(returnType)) {
+                log.warn("@RedisCacheExpirationAwareTag method should be return Number type");
+                continue;
+            }
+
+            return Optional.of(method);
+        }
+
+        return Optional.absent();
+    }
+
+
     public static long redisExpirationSeconds(String key, ApplicationContext appContext) {
         Redis redis = tryGetBean(appContext, Redis.class);
 

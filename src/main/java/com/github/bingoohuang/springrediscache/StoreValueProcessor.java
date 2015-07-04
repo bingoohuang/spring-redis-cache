@@ -1,5 +1,7 @@
 package com.github.bingoohuang.springrediscache;
 
+import java.lang.reflect.Method;
+
 class StoreValueProcessor implements CacheProcessor {
     private final InvocationRuntime runtime;
 
@@ -84,12 +86,25 @@ class StoreValueProcessor implements CacheProcessor {
         Object value = runtime.getValue();
         if (value instanceof RedisCacheExpirationAware)
             seconds = ((RedisCacheExpirationAware) value).expirationSeconds();
+        if (seconds <= 0) seconds = tryRedisCacheExpirationTag(value);
 
         if (seconds <= 0) seconds = runtime.expirationSeconds();
         if (seconds > 0) return Math.min(seconds, Consts.DaySeconds);
 
         throw new RuntimeException("bad usage @RedisCacheEnabled, expiration should be positive "
                 + " or return type implements RedisCacheExpirationAware");
+    }
+
+    private long tryRedisCacheExpirationTag(Object value) {
+        Method method = Utils.findRedisCacheExpirationAwareTagMethod(value.getClass());
+        if (method == null) return -1;
+
+        try {
+            Number result = (Number) method.invoke(value);
+            return result.longValue();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
 

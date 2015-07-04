@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.ConcurrentModificationException;
 import java.util.concurrent.Executors;
@@ -18,8 +19,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Component
 public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable {
-    @Autowired
-    ApplicationContext appContext;
+    @Autowired ApplicationContext appContext;
+    long refreshSpanSeconds = Consts.RefreshSpanSeconds;
 
     final ExpiringMap<String, CachedValueWrapper> cache;
     final ScheduledExecutorService executorService;
@@ -34,8 +35,11 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
         this.cache = cache;
         this.executorService = executorService;
 
-        this.executorService.scheduleAtFixedRate(this,
-                Consts.RefreshSpanSeconds, Consts.RefreshSpanSeconds, SECONDS);
+    }
+
+    @PostConstruct
+    public void postContruct() {
+        executorService.scheduleAtFixedRate(this, refreshSpanSeconds, refreshSpanSeconds, SECONDS);
     }
 
     @PreDestroy
