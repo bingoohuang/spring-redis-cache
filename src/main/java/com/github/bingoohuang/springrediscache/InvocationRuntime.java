@@ -23,7 +23,7 @@ class InvocationRuntime {
     private final ExpiringMap<String, CachedValueWrapper> localCache;
     private final ApplicationContext appContext;
     private final ScheduledExecutorService executorService;
-    private final Logger logger;
+    final Logger logger;
     private final ValueSerializable valueSerializer;
     private Object value;
 
@@ -46,13 +46,14 @@ class InvocationRuntime {
         return redisCacheAnn.expirationSeconds();
     }
 
-    void invokeMethod() {
+    Object invokeMethod() {
         this.value = RedisCacheUtils.invokeMethod(invocation, appContext);
+        return this.value;
     }
 
     boolean tryRedisLock() {
         boolean locked = redis.tryLock(lockKey);
-        if (locked) logger.debug("got  redis lock {}", lockKey);
+        if (locked) logger.debug("got redis lock {}", lockKey);
         return locked;
     }
 
@@ -64,20 +65,21 @@ class InvocationRuntime {
     }
 
     void setex(long expirationSeconds) {
+        logger.debug("put redis {} = {} with expiration {} seconds", valueKey, value, expirationSeconds);
+
         String value = valueSerializer.serialize(this.value);
         redis.setex(valueKey, value, expirationSeconds, TimeUnit.SECONDS);
-        logger.debug("put  redis {} = {} with expiration {} seconds", valueKey, value, expirationSeconds);
     }
 
     Object getLocalCache() {
         CachedValueWrapper cachedValue = localCache.get(valueKey);
         if (cachedValue != null) {
             long expectedExpiration = getExpectedExpirationSeconds();
-            logger.debug("got  local {} = {} with expiration {} seconds", valueKey, cachedValue.getValue(), expectedExpiration);
+            logger.debug("got local {} = {} with expiration {} seconds", valueKey, cachedValue.getValue(), expectedExpiration);
             if (expectedExpiration >= 0) this.value = cachedValue.getValue();
             else localCache.remove(valueKey);
         } else {
-            logger.debug("got  local {} = null", valueKey);
+            logger.debug("got local {} = null", valueKey);
         }
 
         return this.value;
@@ -96,9 +98,9 @@ class InvocationRuntime {
     }
 
     void putLocalCache(long ttlSeconds) {
+        logger.debug("put local {} = {} with expiration {} seconds", valueKey, this.value, ttlSeconds);
         CachedValueWrapper valueWrapper = new CachedValueWrapper(this.value, redisCacheAnn, logger);
         localCache.put(valueKey, valueWrapper, CREATED, ttlSeconds, TimeUnit.SECONDS);
-        logger.debug("put  local {} = {} with expiration {} seconds", valueKey, this.value, ttlSeconds);
     }
 
     void waitLockReleaseAndReadRedis() {
@@ -112,7 +114,7 @@ class InvocationRuntime {
 
     void loadRedisValueToCache(long ttlSeconds) {
         String redisValue = redis.get(valueKey);
-        logger.debug("got  redis {} = {}", valueKey, redisValue);
+        logger.debug("got redis {} = {}", valueKey, redisValue);
 
         if (StringUtils.isEmpty(redisValue)) value = null;
         else {
@@ -131,24 +133,41 @@ class InvocationRuntime {
     }
 
     Object process() {
+        checkRedisRequired();
+        tryInvalidCacheIfConnectingCache();
+
+        CacheProcessor cacheProcessor = getCacheProcessor();
+        return cacheProcessor.process();
+    }
+
+    private CacheProcessor getCacheProcessor() {
         switch (redisCacheAnn.redisFor()) {
             case StoreValue:
-                checkRedisRequired();
-                return new StoreValueProcessor(this).process();
+                return new StoreValueProcessor(this);
             case RefreshSeconds:
-                checkRedisRequired();
             case CwdFileRefreshSeconds:
-                return new RefreshSecondsProcessor(this).process();
+            default:
+                return new RefreshSecondsProcessor(this);
         }
-
-        throw new RuntimeException("code should be reached here");
     }
 
     private void checkRedisRequired() {
-        if (redis != null) return;
-
-        throw new RuntimeException("Redis bean should defined in spring context");
+        switch (redisCacheAnn.redisFor()) {
+            case StoreValue:
+            case RefreshSeconds:
+                if (redis != null) return;
+                throw new RuntimeException("Redis bean should defined in spring context");
+        }
     }
+
+    private void tryInvalidCacheIfConnectingCache() {
+        Object threadLocalValue = RedisCacheConnector.threadLocal.get();
+        if (threadLocalValue == null) return;
+
+        localCache.remove(valueKey);
+        if (redisCacheAnn.redisFor() == RedisFor.StoreValue) redis.del(valueKey);
+    }
+
 
     void submit(Runnable runnable) {
         executorService.submit(runnable);
@@ -166,9 +185,10 @@ class InvocationRuntime {
 
     Object invokeMethodAndPutCache() {
         invokeMethod();
-
-        long expiration = RedisCacheUtils.redisExpirationSeconds(valueKey, appContext);
-        putLocalCache(expiration);
+        if (value != null) {
+            long expiration = RedisCacheUtils.redisExpirationSeconds(valueKey, appContext);
+            putLocalCache(expiration);
+        }
 
         return value;
     }
@@ -178,7 +198,7 @@ class InvocationRuntime {
         while (!tryLockLocalCache()) {
             RedisCacheUtils.sleep(100);
         }
-        logger.debug("got  cache lock {}", lockKey);
+        logger.debug("got cache lock {}", lockKey);
     }
 
     private void waitRedisLock() {
@@ -186,6 +206,7 @@ class InvocationRuntime {
         do {
             RedisCacheUtils.sleep(100);
         } while (redis.isLocked(lockKey));
-        logger.debug("got  redis lock {}", lockKey);
+        logger.debug("got redis lock {}", lockKey);
     }
+
 }

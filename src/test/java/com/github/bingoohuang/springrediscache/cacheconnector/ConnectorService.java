@@ -1,12 +1,12 @@
-package com.github.bingoohuang.springrediscache.directset;
+package com.github.bingoohuang.springrediscache.cacheconnector;
 
 import com.github.bingoohuang.springrediscache.RedisCacheEnabled;
 import com.github.bingoohuang.springrediscache.RedisFor;
 import org.springframework.stereotype.Service;
 
 @Service
-public class DirectService {
-    @RedisCacheEnabled(redisFor = RedisFor.StoreValue, expirationSeconds = 24 * 60 * 60)
+public class ConnectorService {
+    @RedisCacheEnabled(redisFor = RedisFor.StoreValue)
     public String getAccessToken() {
         return "Ignored";
     }

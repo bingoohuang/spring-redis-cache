@@ -16,11 +16,11 @@ public @interface RedisCacheEnabled {
     /**
      * 缓存过期秒数.
      * 当redisFor = StoreValue有效.
-     * 在方法方法类型实现了@CacheExpirationAware时，可以不设置;否则必须设置为大于0，小于24*60*60*1000(一天).
+     * 在方法方法类型实现了@CacheExpirationAware时，可以不设置;否则必须设置为大于0，小于24*60*60(一天).
      *
      * @return 缓存过期微秒数.
      */
-    long expirationSeconds() default -1;
+    long expirationSeconds() default 24 * 60 * 60;
 
     /**
      * 缓存在1分后过期时，是否提前刷新缓存.

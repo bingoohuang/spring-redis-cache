@@ -74,25 +74,27 @@ class StoreValueProcessor implements CacheProcessor {
     }
 
     private void invokeMethodAndSaveCache(InvocationRuntime runtime) {
-        runtime.invokeMethod();
-        long expirationSeconds = getExpirationSeconds(runtime);
+        Object cachedValue = runtime.invokeMethod();
+        if (cachedValue != null) {
+            long expirationSeconds = getExpirationSeconds(runtime);
 
-        runtime.setex(expirationSeconds);
-        runtime.putLocalCache(expirationSeconds);
+            runtime.setex(expirationSeconds);
+            runtime.putLocalCache(expirationSeconds);
+        }
     }
 
     private long getExpirationSeconds(InvocationRuntime runtime) {
-        long seconds = -1;
         Object value = runtime.getValue();
+        if (value == null) return -1;
+
+        long seconds = -1;
         if (value instanceof RedisCacheExpirationAware)
             seconds = ((RedisCacheExpirationAware) value).expirationSeconds();
         if (seconds <= 0) seconds = tryRedisCacheExpirationTag(value);
 
         if (seconds <= 0) seconds = runtime.expirationSeconds();
         if (seconds > 0) return Math.min(seconds, Consts.DaySeconds);
-
-        throw new RuntimeException("bad usage @RedisCacheEnabled, expiration should be positive "
-                + " or return type implements RedisCacheExpirationAware");
+        return seconds;
     }
 
     private long tryRedisCacheExpirationTag(Object value) {

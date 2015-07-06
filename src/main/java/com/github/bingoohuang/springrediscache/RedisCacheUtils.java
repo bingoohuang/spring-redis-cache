@@ -119,8 +119,8 @@ public class RedisCacheUtils {
 
     private static Object invokeMethod(MethodInvocation invocation) {
         try {
-            Object threadLocalValue = RedisCacheConnecter.threadLocal.get();
-            if (threadLocalValue != null) return threadLocalValue;
+            Optional<Object> threadLocalValue = RedisCacheConnector.threadLocal.get();
+            if (threadLocalValue != null) return threadLocalValue.orNull();
 
             return invocation.proceed();
         } catch (Throwable throwable) {
@@ -152,9 +152,9 @@ public class RedisCacheUtils {
         return Json.json(arg);
     }
 
-    public static void sleep(int milis) {
+    public static void sleep(int millis) {
         try {
-            TimeUnit.MILLISECONDS.sleep(milis);
+            TimeUnit.MILLISECONDS.sleep(millis);
         } catch (InterruptedException e) {
             // ignore
         }
