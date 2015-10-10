@@ -12,6 +12,8 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.bingoohuang.springrediscache.RedisCacheUtils.createValueSerializer;
+import static com.github.bingoohuang.springrediscache.RedisCacheUtils.generateValueKey;
 import static net.jodah.expiringmap.ExpiringMap.ExpirationPolicy.CREATED;
 
 class InvocationRuntime {
@@ -37,8 +39,8 @@ class InvocationRuntime {
         this.appContext = appContext;
         this.executorService = executorService;
 
-        this.valueKey = RedisCacheUtils.generateValueKey(invocation, redisCacheAnn, appContext, logger);
-        this.valueSerializer = RedisCacheUtils.createValueSerializer(appContext, redisCacheAnn, invocation.getMethod(), logger);
+        this.valueKey = generateValueKey(invocation, redisCacheAnn, appContext, logger);
+        this.valueSerializer = createValueSerializer(appContext, redisCacheAnn, invocation.getMethod(), logger);
         this.lockKey = valueKey + ":lock";
     }
 
@@ -65,7 +67,8 @@ class InvocationRuntime {
     }
 
     void setex(long expirationSeconds) {
-        logger.debug("put redis {} = {} with expiration {} seconds", valueKey, value, expirationSeconds);
+        logger.debug("put redis {} = {} with expiration {} seconds",
+                valueKey, value, expirationSeconds);
 
         String value = valueSerializer.serialize(this.value);
         redis.setex(valueKey, value, expirationSeconds, TimeUnit.SECONDS);
@@ -75,7 +78,8 @@ class InvocationRuntime {
         CachedValueWrapper cachedValue = localCache.get(valueKey);
         if (cachedValue != null) {
             long expectedExpiration = getExpectedExpirationSeconds();
-            logger.debug("got local {} = {} with expiration {} seconds", valueKey, cachedValue.getValue(), expectedExpiration);
+            logger.debug("got local {} = {} with expiration {} seconds",
+                    valueKey, cachedValue.getValue(), expectedExpiration);
             if (expectedExpiration >= 0) this.value = cachedValue.getValue();
             else localCache.remove(valueKey);
         } else {
@@ -98,9 +102,10 @@ class InvocationRuntime {
     }
 
     void putLocalCache(long ttlSeconds) {
-        logger.debug("put local {} = {} with expiration {} seconds", valueKey, this.value, ttlSeconds);
-        CachedValueWrapper valueWrapper = new CachedValueWrapper(this.value, redisCacheAnn, logger);
-        localCache.put(valueKey, valueWrapper, CREATED, ttlSeconds, TimeUnit.SECONDS);
+        logger.debug("put local {} = {} with expiration {} seconds",
+                valueKey, this.value, ttlSeconds);
+        CachedValueWrapper vw = new CachedValueWrapper(this.value, redisCacheAnn, logger);
+        localCache.put(valueKey, vw, CREATED, ttlSeconds, TimeUnit.SECONDS);
     }
 
     void waitLockReleaseAndReadRedis() {
