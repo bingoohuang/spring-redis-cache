@@ -1,14 +1,13 @@
 package com.github.bingoohuang.springrediscache;
 
 import com.github.bingoohuang.utils.redis.Redis;
-import com.google.common.base.Objects;
 import com.google.common.base.Optional;
 import net.jodah.expiringmap.ExpiringMap;
 import org.aopalliance.intercept.MethodInvocation;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
-import org.springframework.util.StringUtils;
 
 import java.util.NoSuchElementException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -181,8 +180,10 @@ class InvocationRuntime {
         if (redisCacheAnn.redisFor() == RedisFor.StoreValue) {
             if (threadLocalValue.orNull() == CLEARTAG) {
                 String redisValue = redis.get(valueKey);
-                Object obj = valueSerializer.deserialize(redisValue, invocation.getMethod());
-                if (removed != null && Objects.equal(removed.getValue(), obj)) {
+                String serialize = removed != null && redisValue != null
+                        ? valueSerializer.serialize(removed.getValue())
+                        : null;
+                if (redisValue != null && redisValue.equals(serialize)) {
                     redis.del(valueKey);
                 }
             } else {
