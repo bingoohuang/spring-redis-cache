@@ -1,6 +1,8 @@
 package com.github.bingoohuang.springrediscache;
 
 import com.github.bingoohuang.utils.redis.Redis;
+import com.google.common.base.Objects;
+import com.google.common.base.Optional;
 import net.jodah.expiringmap.ExpiringMap;
 import org.aopalliance.intercept.MethodInvocation;
 import org.slf4j.Logger;
@@ -12,8 +14,9 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static com.github.bingoohuang.springrediscache.RedisCacheUtils.createValueSerializer;
-import static com.github.bingoohuang.springrediscache.RedisCacheUtils.generateValueKey;
+import static com.github.bingoohuang.springrediscache.RedisCacheConnector.CLEARTAG;
+import static com.github.bingoohuang.springrediscache.RedisCacheConnector.THREADLOCAL;
+import static com.github.bingoohuang.springrediscache.RedisCacheUtils.*;
 import static net.jodah.expiringmap.ExpiringMap.ExpirationPolicy.CREATED;
 
 class InvocationRuntime {
@@ -117,14 +120,18 @@ class InvocationRuntime {
         return value;
     }
 
-    void loadRedisValueToCache(long ttlSeconds) {
+    boolean loadRedisValueToCache(long ttlSeconds) {
         String redisValue = redis.get(valueKey);
         logger.debug("got redis {} = {}", valueKey, redisValue);
 
-        if (StringUtils.isEmpty(redisValue)) value = null;
-        else {
+        if (StringUtils.isEmpty(redisValue)) {
+            value = null;
+            return false;
+        } else {
             value = valueSerializer.deserialize(redisValue, invocation.getMethod());
-            if (value != null) putLocalCache(ttlSeconds > 0 ? ttlSeconds : redisTtlSeconds());
+            if (value != null)
+                putLocalCache(ttlSeconds > 0 ? ttlSeconds : redisTtlSeconds());
+            return true;
         }
     }
 
@@ -166,13 +173,23 @@ class InvocationRuntime {
     }
 
     private void tryInvalidCacheIfConnectingCache() {
-        Object threadLocalValue = RedisCacheConnector.threadLocal.get();
+        Optional<Object> threadLocalValue = THREADLOCAL.get();
         if (threadLocalValue == null) return;
 
-        localCache.remove(valueKey);
-        if (redisCacheAnn.redisFor() == RedisFor.StoreValue) redis.del(valueKey);
-    }
+        CachedValueWrapper removed = localCache.remove(valueKey);
 
+        if (redisCacheAnn.redisFor() == RedisFor.StoreValue) {
+            if (threadLocalValue.orNull() == CLEARTAG) {
+                String redisValue = redis.get(valueKey);
+                Object obj = valueSerializer.deserialize(redisValue, invocation.getMethod());
+                if (removed != null && Objects.equal(removed.getValue(), obj)) {
+                    redis.del(valueKey);
+                }
+            } else {
+                redis.del(valueKey);
+            }
+        }
+    }
 
     void submit(Runnable runnable) {
         executorService.submit(runnable);
@@ -191,7 +208,7 @@ class InvocationRuntime {
     Object invokeMethodAndPutCache() {
         invokeMethod();
         if (value != null) {
-            long expiration = RedisCacheUtils.redisExpirationSeconds(valueKey, appContext);
+            long expiration = redisExpirationSeconds(valueKey, appContext);
             putLocalCache(expiration);
         }
 

@@ -6,16 +6,29 @@ import com.google.common.base.Throwables;
 import java.util.concurrent.Callable;
 
 public class RedisCacheConnector {
-    static ThreadLocal<Optional<Object>> threadLocal = new ThreadLocal<Optional<Object>>();
+    static final ThreadLocal<Optional<Object>> THREADLOCAL = new ThreadLocal<Optional<Object>>();
+    static final Object CLEARTAG = new Object();
+
+    /**
+     * Clear the cache related to callable.
+     * First the local cache is cleared.
+     * Then check the redis with local, is their values are equal, then the redis cache will be cleared.
+     * Other the redis cache will be left.
+     * @param callable
+     * @param <T>
+     */
+    public static <T> void clearCache(Callable<T> callable) {
+        connectCache(callable, CLEARTAG);
+    }
 
     public static <T> T connectCache(Callable<T> callable, Object cachedValue) {
-        threadLocal.set(Optional.fromNullable(cachedValue));
+        THREADLOCAL.set(Optional.fromNullable(cachedValue));
         try {
             return callable.call();
         } catch (Exception e) {
             throw Throwables.propagate(e);
         } finally {
-            threadLocal.remove();
+            THREADLOCAL.remove();
         }
     }
 }

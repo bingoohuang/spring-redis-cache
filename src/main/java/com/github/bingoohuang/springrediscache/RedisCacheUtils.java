@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.bingoohuang.springrediscache.RedisCacheConnector.THREADLOCAL;
 import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static org.springframework.util.StringUtils.capitalize;
 
@@ -50,7 +51,8 @@ public class RedisCacheUtils {
             }
 
             Class<?> returnType = method.getReturnType();
-            if (returnType.isPrimitive()) returnType = Primitives.wrap(returnType);
+            if (returnType.isPrimitive())
+                returnType = Primitives.wrap(returnType);
             if (!Number.class.isAssignableFrom(returnType)) {
                 log.warn("@RedisCacheExpirationAwareTag method should be return Number type");
                 continue;
@@ -69,7 +71,8 @@ public class RedisCacheUtils {
         String expirationStr = redis != null ? redis.get(key) : cwdFileRefreshSeconds(key);
         long expirationSeconds = Consts.MaxSeconds;
         if (expirationStr == null) return expirationSeconds;
-        if (expirationStr.matches("\\d+")) return Consts.MinSeconds + Long.parseLong(expirationStr);
+        if (expirationStr.matches("\\d+"))
+            return Consts.MinSeconds + Long.parseLong(expirationStr);
         return Consts.MinSeconds + expirationStr.hashCode();
     }
 
@@ -119,8 +122,11 @@ public class RedisCacheUtils {
 
     private static Object invokeMethod(MethodInvocation invocation) {
         try {
-            Optional<Object> threadLocalValue = RedisCacheConnector.threadLocal.get();
-            if (threadLocalValue != null) return threadLocalValue.orNull();
+            Optional<Object> threadLocalValue = THREADLOCAL.get();
+            if (threadLocalValue != null) {
+                Object obj = threadLocalValue.orNull();
+                return obj == RedisCacheConnector.CLEARTAG ? null : obj;
+            }
 
             return invocation.proceed();
         } catch (Throwable throwable) {
@@ -167,10 +173,12 @@ public class RedisCacheUtils {
 
         Class<?> returnType = method.getReturnType();
         if (redisCacheAnn.valueSerializer() == AutoSelectValueSerializer.class) {
-            if (returnType == String.class) return new StringValueSerializable();
+            if (returnType == String.class)
+                return new StringValueSerializable();
             if (returnType.isPrimitive() || Primitives.isWrapperType(returnType))
                 return new PrimitiveValueSerializable(returnType);
-            if (returnType.isEnum()) return new EnumValueSerializable(returnType);
+            if (returnType.isEnum())
+                return new EnumValueSerializable(returnType);
 
             return new JSONValueSerializer(returnType, logger);
         }

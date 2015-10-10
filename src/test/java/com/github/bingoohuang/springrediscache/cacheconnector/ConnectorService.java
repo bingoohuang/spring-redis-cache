@@ -10,4 +10,9 @@ public class ConnectorService {
     public String getAccessToken() {
         return "Ignored";
     }
+
+    @RedisCacheEnabled(redisFor = RedisFor.StoreValue)
+    public String getAccessTokenForClear() {
+        return "" + System.currentTimeMillis();
+    }
 }

@@ -2,89 +2,96 @@ package com.github.bingoohuang.springrediscache;
 
 import java.lang.reflect.Method;
 
-class StoreValueProcessor implements CacheProcessor {
-    private final InvocationRuntime runtime;
+import static com.github.bingoohuang.springrediscache.RedisCacheUtils.findRedisCacheExpirationAwareTagMethod;
 
-    StoreValueProcessor(InvocationRuntime runtime) {
-        this.runtime = runtime;
+class StoreValueProcessor implements CacheProcessor {
+    private final InvocationRuntime rt;
+
+    StoreValueProcessor(InvocationRuntime rt) {
+        this.rt = rt;
     }
 
     @Override
     public Object process() {
-        Object value = runtime.getLocalCache();
+        Object value = rt.getLocalCache();
         if (value != null) {
-            tryRefreshAhead(runtime);
+            tryRefreshAhead();
             return value;
         }
 
         try {
-            runtime.waitCacheLock();
-            value = runtime.getLocalCache();
+            rt.waitCacheLock();
+            value = rt.getLocalCache();
             if (value != null) return value;
 
-            return forceRefresh(runtime);
+            return forceRefresh();
         } finally {
-            runtime.unlockLocalCache();
+            rt.unlockLocalCache();
         }
     }
 
-    private void tryRefreshAhead(final InvocationRuntime runtime) {
-        if (!runtime.isAheadRefreshEnabled()) return;
-        if (runtime.isBeforeAheadSeconds()) return;
+    private void tryRefreshAhead() {
+        if (!rt.isAheadRefreshEnabled()) return;
+        if (rt.isBeforeAheadSeconds()) return;
 
-        if (!runtime.tryLockLocalCache()) return;
+        if (!rt.tryLockLocalCache()) return;
 
-        runtime.submit(new Runnable() {
+        rt.submit(new Runnable() {
             @Override
             public void run() {
                 try {
-                    forceRefresh(runtime);
+                    forceRefresh();
                 } finally {
-                    runtime.unlockLocalCache();
+                    rt.unlockLocalCache();
                 }
             }
         });
     }
 
-    private Object forceRefresh(final InvocationRuntime runtime) {
-        long ttlSeconds = runtime.redisTtlSeconds();
+    private Object forceRefresh() {
+        long ttlSeconds = rt.redisTtlSeconds();
 
-        if (ttlSeconds > (runtime.isAheadRefreshEnabled() ? Consts.AheadRefreshSeconds : 0)) {
-            runtime.loadRedisValueToCache(ttlSeconds);
+        if (ttlSeconds > getAheadSeconds()) {
+            rt.loadRedisValueToCache(ttlSeconds);
         }
 
-        if (runtime.getValue() == null) tryRefreshOrReadRedis(runtime);
+        if (rt.getValue() == null) tryRefreshOrReadRedis();
 
-        return runtime.getValue();
+        return rt.getValue();
     }
 
-    private void tryRefreshOrReadRedis(InvocationRuntime runtime) {
+    private long getAheadSeconds() {
+        return rt.isAheadRefreshEnabled() ? Consts.AheadRefreshSeconds : 0;
+    }
+
+    private void tryRefreshOrReadRedis() {
         boolean lock = false;
         try {
-            lock = runtime.tryRedisLock();
+            lock = rt.tryRedisLock();
             if (lock) {
-                invokeMethodAndSaveCache(runtime);
+                boolean ok = rt.loadRedisValueToCache(-1); // try read again
+                if (!ok) invokeMethodAndSaveCache();
                 return;
             }
         } finally {
-            runtime.unlockRedis(lock);
+            rt.unlockRedis(lock);
         }
 
-        runtime.waitLockReleaseAndReadRedis();
+        rt.waitLockReleaseAndReadRedis();
     }
 
-    private void invokeMethodAndSaveCache(InvocationRuntime runtime) {
-        Object cachedValue = runtime.invokeMethod();
+    private void invokeMethodAndSaveCache() {
+        Object cachedValue = rt.invokeMethod();
         if (cachedValue != null) {
-            long expirationSeconds = getExpirationSeconds(runtime);
+            long expirationSeconds = getExpirationSeconds();
 
-            runtime.setex(expirationSeconds);
-            runtime.putLocalCache(expirationSeconds);
+            rt.setex(expirationSeconds);
+            rt.putLocalCache(expirationSeconds);
         }
     }
 
-    private long getExpirationSeconds(InvocationRuntime runtime) {
-        Object value = runtime.getValue();
+    private long getExpirationSeconds() {
+        Object value = rt.getValue();
         if (value == null) return -1;
 
         long seconds = -1;
@@ -92,13 +99,13 @@ class StoreValueProcessor implements CacheProcessor {
             seconds = ((RedisCacheExpirationAware) value).expirationSeconds();
         if (seconds <= 0) seconds = tryRedisCacheExpirationTag(value);
 
-        if (seconds <= 0) seconds = runtime.expirationSeconds();
+        if (seconds <= 0) seconds = rt.expirationSeconds();
         if (seconds > 0) return Math.min(seconds, Consts.DaySeconds);
         return seconds;
     }
 
     private long tryRedisCacheExpirationTag(Object value) {
-        Method method = RedisCacheUtils.findRedisCacheExpirationAwareTagMethod(value.getClass());
+        Method method = findRedisCacheExpirationAwareTagMethod(value.getClass());
         if (method == null) return -1;
 
         try {
