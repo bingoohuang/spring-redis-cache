@@ -35,8 +35,9 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
                 ExpiringMap.builder().variableExpiration().<String, CachedValueWrapper>build());
     }
 
-    public RedisCacheEnabledInterceptor(ScheduledExecutorService executorService,
-                                        ExpiringMap<String, CachedValueWrapper> cache) {
+    public RedisCacheEnabledInterceptor(
+            ScheduledExecutorService executorService,
+            ExpiringMap<String, CachedValueWrapper> cache) {
         this.cache = cache;
         this.executorService = executorService;
 
@@ -44,7 +45,8 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
 
     @PostConstruct
     public void postContruct() {
-        executorService.scheduleAtFixedRate(this, refreshSpanSeconds, refreshSpanSeconds, SECONDS);
+        executorService.scheduleAtFixedRate(this,
+                refreshSpanSeconds, refreshSpanSeconds, SECONDS);
     }
 
     @PreDestroy
@@ -77,21 +79,23 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
         }
     }
 
-    private void checkRefreshTimestampInRedis(String key, CachedValueWrapper wrapper) {
-        long expiration = redisExpirationSeconds(key, appContext);
-        long cacheExpiration = cache.getExpiration(key);
+    private void checkRefreshTimestampInRedis(
+            String key, CachedValueWrapper wrapper) {
+        long expirationSeconds = redisExpirationSeconds(key, appContext);
+        long cacheExpirationMillis = cache.getExpiration(key);
 
-        if (expiration == cacheExpiration) return;
+        if (expirationSeconds == cacheExpirationMillis / 1000) return;
 
         CachedValueWrapper removed = cache.remove(key);
         if (removed == null) return;
 
         Logger logger = wrapper.getLogger();
         logger.debug("invalidate cache {} because of redis refresh seconds " +
-                "changed to {} ", key, expiration);
+                "changed to {} seconds", key, expirationSeconds);
     }
 
-    private void checkKeyExistsInRedis(final String key, final CachedValueWrapper wrapper) {
+    private void checkKeyExistsInRedis(
+            final String key, final CachedValueWrapper wrapper) {
         Redis redis = RedisCacheUtils.tryGetBean(appContext, Redis.class);
         RedisOp redisOp = new RedisOp() {
             @Override
