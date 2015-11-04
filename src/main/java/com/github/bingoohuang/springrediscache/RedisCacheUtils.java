@@ -98,14 +98,14 @@ public class RedisCacheUtils {
         String expirationStr = redis != null ? redis.get(key) : cwdFileRefreshSeconds(key);
         long expirationSeconds = Consts.MaxSeconds;
         if (expirationStr == null) return expirationSeconds;
-        if (expirationStr.matches("\\d+"))
-            return Consts.MinSeconds + Long.parseLong(expirationStr);
+        if (expirationStr.matches("\\d+")) return Long.parseLong(expirationStr);
         return Consts.MinSeconds + expirationStr.hashCode();
     }
 
     public static long trySaveExpireSeconds(String key, ApplicationContext appContext, InvocationRuntime rt) {
         long realExpireSeconds = getExpirationSeconds(rt);
-        if (realExpireSeconds < 0) return redisExpirationSeconds(key, appContext);
+        if (realExpireSeconds < 0)
+            return redisExpirationSeconds(key, appContext);
 
         Redis redis = tryGetBean(appContext, Redis.class);
         if (redis != null) {
