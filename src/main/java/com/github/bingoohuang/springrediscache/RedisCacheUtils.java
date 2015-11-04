@@ -27,6 +27,33 @@ import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static org.springframework.util.StringUtils.capitalize;
 
 public class RedisCacheUtils {
+    public static long getExpirationSeconds(InvocationRuntime rt) {
+        Object value = rt.getValue();
+        if (value == null) return -1;
+
+        long seconds = -1;
+        if (value instanceof RedisCacheExpirationAware)
+            seconds = ((RedisCacheExpirationAware) value).expirationSeconds();
+        if (seconds <= 0) seconds = tryRedisCacheExpirationTag(value);
+
+        if (seconds <= 0) seconds = rt.expirationSeconds();
+        if (seconds > 0) return Math.min(seconds, Consts.DaySeconds);
+        return seconds;
+    }
+
+    private static long tryRedisCacheExpirationTag(Object value) {
+        Method method = findRedisCacheExpirationAwareTagMethod(value.getClass());
+        if (method == null) return -1;
+
+        try {
+            Number result = (Number) method.invoke(value);
+            return result.longValue();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     static LoadingCache<Class<?>, Optional<Method>> redisCacheExpirationAwareTagMethodCache
             = CacheBuilder.newBuilder().build(new CacheLoader<Class<?>, Optional<Method>>() {
         @Override
@@ -74,6 +101,30 @@ public class RedisCacheUtils {
         if (expirationStr.matches("\\d+"))
             return Consts.MinSeconds + Long.parseLong(expirationStr);
         return Consts.MinSeconds + expirationStr.hashCode();
+    }
+
+    public static long trySaveExpireSeconds(String key, ApplicationContext appContext, InvocationRuntime rt) {
+        long realExpireSeconds = getExpirationSeconds(rt);
+        if (realExpireSeconds < 0) return redisExpirationSeconds(key, appContext);
+
+        Redis redis = tryGetBean(appContext, Redis.class);
+        if (redis != null) {
+            redis.set(key, "" + realExpireSeconds);
+        } else {
+            writeCwdFileRefreshSeconds(key, realExpireSeconds);
+        }
+
+        return realExpireSeconds;
+    }
+
+    private static void writeCwdFileRefreshSeconds(String key, long realExpirationSeconds) {
+        File file = new File(key.replace(':', '.'));
+
+        try {
+            Files.write("" + realExpirationSeconds, file, Charsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("try to write cwdFileRefreshSeconds for key " + key + " failed", e);
+        }
     }
 
     private static String cwdFileRefreshSeconds(String key) {

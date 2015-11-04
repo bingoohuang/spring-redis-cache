@@ -1,9 +1,5 @@
 package com.github.bingoohuang.springrediscache;
 
-import java.lang.reflect.Method;
-
-import static com.github.bingoohuang.springrediscache.RedisCacheUtils.findRedisCacheExpirationAwareTagMethod;
-
 class StoreValueProcessor implements CacheProcessor {
     private final InvocationRuntime rt;
 
@@ -83,38 +79,11 @@ class StoreValueProcessor implements CacheProcessor {
     private void invokeMethodAndSaveCache() {
         Object cachedValue = rt.invokeMethod();
         if (cachedValue != null) {
-            long expirationSeconds = getExpirationSeconds();
+            long expirationSeconds = RedisCacheUtils.getExpirationSeconds(rt);
 
             rt.setex(expirationSeconds);
             rt.putLocalCache(expirationSeconds);
         }
     }
-
-    private long getExpirationSeconds() {
-        Object value = rt.getValue();
-        if (value == null) return -1;
-
-        long seconds = -1;
-        if (value instanceof RedisCacheExpirationAware)
-            seconds = ((RedisCacheExpirationAware) value).expirationSeconds();
-        if (seconds <= 0) seconds = tryRedisCacheExpirationTag(value);
-
-        if (seconds <= 0) seconds = rt.expirationSeconds();
-        if (seconds > 0) return Math.min(seconds, Consts.DaySeconds);
-        return seconds;
-    }
-
-    private long tryRedisCacheExpirationTag(Object value) {
-        Method method = findRedisCacheExpirationAwareTagMethod(value.getClass());
-        if (method == null) return -1;
-
-        try {
-            Number result = (Number) method.invoke(value);
-            return result.longValue();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
 
 }
