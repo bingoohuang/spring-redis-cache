@@ -118,7 +118,7 @@ public class RedisCacheUtils {
     }
 
     private static void writeCwdFileRefreshSeconds(String key, long realExpirationSeconds) {
-        File file = new File(key.replace(':', '.'));
+        File file = new File("." + key.replace(':', '.'));
 
         try {
             Files.write("" + realExpirationSeconds, file, Charsets.UTF_8);
@@ -128,7 +128,7 @@ public class RedisCacheUtils {
     }
 
     private static String cwdFileRefreshSeconds(String key) {
-        File file = new File(key.replace(':', '.'));
+        File file = new File("." + key.replace(':', '.'));
         if (!file.exists() || !file.isFile()) return null;
 
         try {
