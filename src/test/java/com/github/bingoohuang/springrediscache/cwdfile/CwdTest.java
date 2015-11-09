@@ -18,6 +18,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {SpringConfig.class})
@@ -25,7 +26,7 @@ public class CwdTest {
     @Autowired
     CwdService cwdService;
 
-    static File file = new File("Cache.CwdService.Millis.NoArgs");
+    static File file = new File(".Cache.CwdService.Millis.NoArgs");
 
     @BeforeClass
     public static void beforeClass() {
@@ -43,11 +44,11 @@ public class CwdTest {
         long millis2 = cwdService.millis();
         assertThat(millis1, is(equalTo(millis2)));
 
-        RedisCacheUtils.sleep(15000);
-
         Files.write("1", file, Charsets.UTF_8);
 
+        RedisCacheUtils.sleep(15000);
+
         millis2 = cwdService.millis();
-        assertThat(millis1 < millis2, is(true));
+        assertTrue(millis1 < millis2);
     }
 }

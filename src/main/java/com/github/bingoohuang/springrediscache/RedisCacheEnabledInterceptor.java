@@ -81,7 +81,8 @@ public class RedisCacheEnabledInterceptor implements MethodInterceptor, Runnable
 
     private void checkRefreshTimestampInRedis(
             String key, CachedValueWrapper wrapper) {
-        long expirationSeconds = redisExpirationSeconds(key, appContext);
+        long expirationSeconds = redisExpirationSeconds(
+                wrapper.getRedisCacheAnn().redisFor(), key, appContext);
         long cacheExpirationMillis = cache.getExpiration(key);
 
         if (expirationSeconds == cacheExpirationMillis / 1000) return;

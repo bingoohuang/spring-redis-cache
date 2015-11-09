@@ -209,7 +209,8 @@ class InvocationRuntime {
     Object invokeMethodAndPutCache() {
         invokeMethod();
         if (value != null) {
-            long expirationSeconds = trySaveExpireSeconds(valueKey, appContext, this);
+            long expirationSeconds = trySaveExpireSeconds(
+                    redisCacheAnn.redisFor(), valueKey, appContext, this);
             putLocalCache(expirationSeconds);
         }
 

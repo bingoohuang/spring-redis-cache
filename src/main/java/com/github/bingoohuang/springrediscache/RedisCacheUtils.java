@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.bingoohuang.springrediscache.RedisCacheConnector.THREADLOCAL;
+import static com.github.bingoohuang.springrediscache.RedisFor.RefreshSeconds;
 import static com.github.bingoohuang.springrediscache.RedisFor.StoreValue;
 import static org.springframework.util.StringUtils.capitalize;
 
@@ -92,20 +93,26 @@ public class RedisCacheUtils {
     }
 
 
-    public static long redisExpirationSeconds(String key, ApplicationContext appContext) {
-        Redis redis = tryGetBean(appContext, Redis.class);
+    public static long redisExpirationSeconds(RedisFor redisFor, String key,
+                                              ApplicationContext appContext) {
+        boolean redisForRefresh = redisFor == RefreshSeconds;
+        Redis redis = redisForRefresh ? tryGetBean(appContext, Redis.class) : null;
 
-        String expirationStr = redis != null ? redis.get(key) : cwdFileRefreshSeconds(key);
+        String expirationStr = redisForRefresh ? redis.get(key) : cwdFileRefreshSeconds(key);
         long expirationSeconds = Consts.MaxSeconds;
         if (expirationStr == null) return expirationSeconds;
         if (expirationStr.matches("\\d+")) return Long.parseLong(expirationStr);
         return Consts.MinSeconds + expirationStr.hashCode();
     }
 
-    public static long trySaveExpireSeconds(String key, ApplicationContext appContext, InvocationRuntime rt) {
+    public static long trySaveExpireSeconds(
+            RedisFor redisFor,
+            String key,
+            ApplicationContext appContext,
+            InvocationRuntime rt) {
         long realExpireSeconds = getExpirationSeconds(rt);
         if (realExpireSeconds < 0)
-            return redisExpirationSeconds(key, appContext);
+            return redisExpirationSeconds(redisFor, key, appContext);
 
         Redis redis = tryGetBean(appContext, Redis.class);
         if (redis != null) {
