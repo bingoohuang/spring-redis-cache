@@ -31,4 +31,20 @@ public class RedisCacheConnector {
             THREADLOCAL.remove();
         }
     }
+
+    /**
+     * 刷新老缓存，并取得新值。
+     * @param callable
+     * @param <T>
+     * @return
+     */
+    public static <T> T refreshCache(Callable<T> callable) {
+        clearCache(callable);
+
+        try {
+            return callable.call();
+        } catch (Exception e) {
+            throw Throwables.propagate(e);
+        }
+    }
 }
